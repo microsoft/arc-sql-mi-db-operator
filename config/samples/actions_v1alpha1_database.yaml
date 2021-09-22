@@ -1,0 +1,20 @@
+apiVersion: actions.msft.isd.coe.io/v1alpha1
+kind: Database
+metadata:
+  name: database-rbc
+spec:
+  # Add fields here
+  name: MyDatabase2
+  server: 20.97.173.244
+  port: 1433
+  collation: SQL_Latin1_General_CP1_CS_AS
+  sqlManagedInstance: jumpstart-sql
+  parameterization: forced # options:[simple, forced]
+  allowSnapshotIsolation: true # optional
+  allowReadCommittedSnapshot: false
+  compatibilityLevel: 160 # optional
+  schedule: "0 */12 * * *" # "*/1 * * * *"
+  # credentials:
+  #   name: credentials
+  #   passwordKey: password
+  #   usernameKey: username
