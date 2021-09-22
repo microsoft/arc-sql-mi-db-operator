@@ -1,14 +1,14 @@
-# Project
+# Azure MS SQl Operator
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+This is a K8S operator to interact with MS SQL Managed Instance
 
-As the maintainer of this project, please make a few updates:
+## TL;DR
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+This project was genereated using [Red Hat's Operator SDK](https://sdk.operatorframework.io/).
+
+You can use the `make` file to handle most use cases including `building, deploying and building docker image`
+
+Check out the `config` directory for the manifests generated and the `config/samples` directory for a sample of the `CRD`.
 
 ## Contributing
 
