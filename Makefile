@@ -5,6 +5,10 @@
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 VERSION ?= 0.0.1
 
+SYNC_VERSION ?= 0.0.12
+
+REPO ?= paulplavetzki
+
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -36,7 +40,9 @@ IMAGE_TAG_BASE ?= msft.isd.coe.io/azure-sql-mi
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= azure-sql-mi:latest
+# Image URL to build/push image targets for the sync image
+SYNC_IMG ?= $(REPO)/sync:v$(SYNC_VERSION)
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -103,6 +109,12 @@ docker-build: test ## Build docker image with the manager.
 
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
+
+docker-sync-build:
+	docker build -t $(SYNC_IMG) -f sync.dockerfile .
+
+docker-sync-push: ## Push docker image with the sync.
+	docker push ${SYNC_IMG}
 
 ##@ Deployment
 

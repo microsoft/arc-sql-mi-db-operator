@@ -10,6 +10,58 @@ You can use the `make` file to handle most use cases including `building, deploy
 
 Check out the `config` directory for the manifests generated and the `config/samples` directory for a sample of the `CRD`.
 
+## Building
+
+### Building the Operator
+
+To build the `arc-sql-mi-db-operator` you can use the `make docker-build` command.  This command uses the `make` variable `IMG` to tag the image.  I recommend explicitly setting this variable when building the image.
+
+```bash
+make docker-build IMG=azure-sql-mi:v0.1.0
+```
+
+### Building the Sync Image
+
+To build the `sync` image you can use the `make docker-sync-build` command.  This command makes use of a few `make` variables.  Like building the operator, you can explicitly set the `SYNC_IMG`.  However, `SYNC_IMG` is a concatenation of several variables in the following form:
+
+`SYNC_IMG ?= $(REPO)/sync:v$(SYNC_VERSION)`
+
+Each variable can be set or a combination of using the default and explicitly setting the variable.
+
+```bash
+make docker-sync-build REPO=mcr.microsoft.io
+```
+
+## Publishing
+
+### Publishing the Operator
+
+To publish the `arc-sql-mi-db-operator` you can use the `make docker-push` command.  This command uses the `make` variable `IMG` to push the image.  I recommend explicitly setting this variable as it needs to match what was used to build the image.
+
+```bash
+make docker-push IMG=azure-sql-mi:v0.1.0
+```
+
+### Publishing the Sync Image
+
+To publish the `sync` you can use the `make docker-sync-push` command.  This command uses the `make` variable `SYNC_IMG` to push the image.  I recommend explicitly setting this variable as it needs to match what was used to build the image.
+
+```bash
+make docker-sync-push SYNC_IMG=mcr.microsoft.io/sycn:v0.1.0
+```
+
+## Deploying Operator
+
+To deploy the operator into your `K8S` environment you can use the `make deploy`.  This command uses the `make` variable `IMG`.  I recommend explicitly setting this variable as it needs to match what was used to publish the image.
+
+```bash
+make deploy IMG=azure-sql-mi:v0.1.0
+```
+
+This command also deploys all the necessary `K8S` manifest files located in the `config` directory.  It includes the `RBAC` related manifests, and the `CRD` of database controller.
+
+Keep in mind that you need to have `KUBECONFIG` set or at a minimum an active configuration for this process to complete successfully.
+
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
