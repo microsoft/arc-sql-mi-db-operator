@@ -5,7 +5,7 @@ metadata:
   name: database-viewer-role
 rules:
 - apiGroups:
-  - actions.msft.isd.coe.io
+  - sqlmi.arc-sql-mi.microsoft.io
   resources:
   - databases
   verbs:
@@ -13,7 +13,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - actions.msft.isd.coe.io
+  - sqlmi.arc-sql-mi.microsoft.io
   resources:
   - databases/status
   verbs:

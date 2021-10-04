@@ -7,32 +7,6 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - actions.msft.isd.coe.io
-  resources:
-  - databases
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - actions.msft.isd.coe.io
-  resources:
-  - databases/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - actions.msft.isd.coe.io
-  resources:
-  - databases/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - batch
   resources:
   - cronjobs
@@ -51,6 +25,18 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - ""
   resources:
   - secrets
@@ -66,3 +52,29 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - sqlmi.arc-sql-mi.microsoft.io
+  resources:
+  - databases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - sqlmi.arc-sql-mi.microsoft.io
+  resources:
+  - databases/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - sqlmi.arc-sql-mi.microsoft.io
+  resources:
+  - databases/status
+  verbs:
+  - get
+  - patch
+  - update

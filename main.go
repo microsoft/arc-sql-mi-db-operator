@@ -31,8 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	actionsv1alpha1 "github.com/pplavetzki/azure-sql-mi/api/v1alpha1"
-	"github.com/pplavetzki/azure-sql-mi/controllers"
+	sqlmiv1alpha1 "github.com/pplavetzki/arc-sql-mi/api/v1alpha1"
+	"github.com/pplavetzki/arc-sql-mi/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -44,7 +44,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(actionsv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(sqlmiv1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -71,7 +71,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "6ef9fe38.msft.isd.coe.io",
+		LeaderElectionID:       "c54cb2c1.arc-sql-mi.microsoft.io",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -86,15 +86,10 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Database")
 		os.Exit(1)
 	}
-
-	/*******************************************************************************************************************
-	// we need to uncomment this to trigger the webhook!!!
-	*******************************************************************************************************************/
-	// if err = (&actionsv1alpha1.Database{}).SetupWebhookWithManager(mgr); err != nil {
-	// 	setupLog.Error(err, "unable to create webhook", "webhook", "Database")
-	// 	os.Exit(1)
-	// }
-	/******************************************************************************************************************/
+	if err = (&sqlmiv1alpha1.Database{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Database")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

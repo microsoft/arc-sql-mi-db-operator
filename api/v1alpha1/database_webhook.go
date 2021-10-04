@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -39,7 +40,7 @@ func (r *Database) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 
-//+kubebuilder:webhook:path=/mutate-actions-msft-isd-coe-io-v1alpha1-database,mutating=true,failurePolicy=fail,sideEffects=None,groups=actions.msft.isd.coe.io,resources=databases,verbs=create;update,versions=v1alpha1,name=mdatabase.kb.io,admissionReviewVersions={v1,v1beta1}
+//+kubebuilder:webhook:path=/mutate-sqlmi-arc-sql-mi-microsoft-io-v1alpha1-database,mutating=true,failurePolicy=fail,sideEffects=None,groups=sqlmi.arc-sql-mi.microsoft.io,resources=databases,verbs=create;update,versions=v1alpha1,name=mdatabase.kb.io,admissionReviewVersions={v1,v1beta1}
 
 var _ webhook.Defaulter = &Database{}
 
@@ -51,14 +52,14 @@ func (r *Database) Default() {
 }
 
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-//+kubebuilder:webhook:path=/validate-actions-msft-isd-coe-io-v1alpha1-database,mutating=false,failurePolicy=fail,sideEffects=None,groups=actions.msft.isd.coe.io,resources=databases,verbs=create;update,versions=v1alpha1,name=vdatabase.kb.io,admissionReviewVersions={v1,v1beta1}
+//+kubebuilder:webhook:path=/validate-sqlmi-arc-sql-mi-microsoft-io-v1alpha1-database,mutating=false,failurePolicy=fail,sideEffects=None,groups=sqlmi.arc-sql-mi.microsoft.io,resources=databases,verbs=create;update,versions=v1alpha1,name=vdatabase.kb.io,admissionReviewVersions={v1,v1beta1}
 
 var _ webhook.Validator = &Database{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *Database) ValidateCreate() error {
 	databaselog.Info("validate create", "name", r.Name)
-
+	fmt.Println("---- ValidateCreate ----")
 	// TODO(user): fill in your validation logic upon object creation.
 	return nil
 }
@@ -77,13 +78,13 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 	if r.Spec.Name != curr.Spec.Name {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("name"), r.Spec.Name, "cannot rename the database"))
 		return apierrors.NewInvalid(
-			schema.GroupKind{Group: "actions.msft.isd.coe.io", Kind: "Database"},
+			schema.GroupKind{Group: "sqlmi.arc-sql-mi.microsoft.io", Kind: "Database"},
 			r.Name, allErrs)
 	}
 	if r.Spec.Collation != curr.Spec.Collation {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("collation"), r.Spec.Collation, "cannot change the collation of the database"))
 		return apierrors.NewInvalid(
-			schema.GroupKind{Group: "actions.msft.isd.coe.io", Kind: "Database"},
+			schema.GroupKind{Group: "sqlmi.arc-sql-mi.microsoft.io", Kind: "Database"},
 			r.Name, allErrs)
 	}
 	return nil
@@ -92,6 +93,7 @@ func (r *Database) ValidateUpdate(old runtime.Object) error {
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
 func (r *Database) ValidateDelete() error {
 	databaselog.Info("validate delete", "name", r.Name)
+	fmt.Println("---- ValidateDelete ----")
 
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil

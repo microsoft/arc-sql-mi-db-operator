@@ -1,0 +1,20 @@
+domain: arc-sql-mi.microsoft.io
+layout:
+- go.kubebuilder.io/v3
+projectName: arc-sql-mi
+repo: github.com/pplavetzki/arc-sql-mi
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: arc-sql-mi.microsoft.io
+  group: sqlmi
+  kind: Database
+  path: github.com/pplavetzki/arc-sql-mi/api/v1alpha1
+  version: v1alpha1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
+version: "3"

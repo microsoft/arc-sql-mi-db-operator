@@ -8,17 +8,21 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
-	ms "github.com/pplavetzki/azure-sql-mi/internal"
+	ms "github.com/pplavetzki/arc-sql-mi/internal"
 	"go.uber.org/zap"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	actionsv1alpha1 "github.com/pplavetzki/azure-sql-mi/api/v1alpha1"
+	sqlmi "github.com/pplavetzki/arc-sql-mi/api/v1alpha1"
 )
 
 var (
-	logger logr.Logger
+	logger    logr.Logger
+	clientset *kubernetes.Clientset
 )
 
 type DBResult struct {
@@ -57,7 +61,7 @@ func getDatabaseName(ctx context.Context, msSQL *ms.MSSql, id string, result cha
 	}
 }
 
-func performSync(msSQL *ms.MSSql, db *actionsv1alpha1.Database) error {
+func performSync(msSQL *ms.MSSql, db *sqlmi.Database) error {
 	dbNameResult := make(chan *DBResult)
 	dbIDResult := make(chan *DBResult)
 
@@ -115,6 +119,31 @@ func performSync(msSQL *ms.MSSql, db *actionsv1alpha1.Database) error {
 	return nil
 }
 
+func connectionInfo(db *sqlmi.Database) (string, string, error) {
+	/*******************************************************************************************************************
+	* Quering the defined secret for the database connection
+	*******************************************************************************************************************/
+	mi, err := ms.QuerySQLManagedInstance(context.TODO(), db.Namespace, db.Spec.SQLManagedInstance)
+	if err != nil {
+		return "", "", err
+	}
+	logger.V(1).Info("successfully found managed instance", "sql-managed-instance", db.Spec.SQLManagedInstance)
+	if mi.Status.State != "Ready" {
+		return "", "", fmt.Errorf("the sql managed instance is not in a `Ready` state, current status is: %v", mi.Status)
+	}
+
+	sec, err := clientset.CoreV1().Secrets(mi.Spec.LoginRef.Namespace).Get(context.TODO(), mi.Spec.LoginRef.Name, v1.GetOptions{})
+	if err != nil {
+		logger.Error(err, "secrets credentials resource not found", "secret-name", mi.Spec.LoginRef.Name)
+		return "", "", err
+	}
+
+	username := sec.Data["username"]
+	password := sec.Data["password"]
+	/******************************************************************************************************************/
+	return string(username), string(password), nil
+}
+
 func main() {
 	var config *rest.Config
 
@@ -130,19 +159,41 @@ func main() {
 	user := getEnvOrFail("DATABASE_USER")
 	port := getEnvOrFail("DATABASE_PORT")
 
+	if os.Getenv("KUBECONFIG") != "" {
+		path := os.Getenv("KUBECONFIG")
+		config, err = clientcmd.BuildConfigFromFlags("", path)
+		if err != nil {
+			panic(fmt.Errorf("could not load kubeconfig"))
+		}
+		clientset, err = kubernetes.NewForConfig(config)
+		if err != nil {
+			panic(fmt.Errorf("failed to create clientset"))
+		}
+	} else {
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			panic(err.Error())
+		}
+		// creates the clientset
+		clientset, err = kubernetes.NewForConfig(config)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+
 	crScheme := runtime.NewScheme()
-	actionsv1alpha1.AddToScheme(crScheme)
+	sqlmi.AddToScheme(crScheme)
 
 	cl, _ := client.New(config, client.Options{
 		Scheme: crScheme,
 	})
 
-	list := &actionsv1alpha1.DatabaseList{}
+	list := &sqlmi.DatabaseList{}
 	err = cl.List(context.TODO(), list, &client.ListOptions{})
 	if err != nil {
 		panic(err.Error())
 	}
-	db := &actionsv1alpha1.Database{}
+	db := &sqlmi.Database{}
 
 	cl.Get(context.TODO(), client.ObjectKey{
 		Namespace: namespace,

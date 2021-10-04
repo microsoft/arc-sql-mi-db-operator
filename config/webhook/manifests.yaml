@@ -13,12 +13,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-actions-msft-isd-coe-io-v1alpha1-database
+      path: /mutate-sqlmi-arc-sql-mi-microsoft-io-v1alpha1-database
   failurePolicy: Fail
   name: mdatabase.kb.io
   rules:
   - apiGroups:
-    - actions.msft.isd.coe.io
+    - sqlmi.arc-sql-mi.microsoft.io
     apiVersions:
     - v1alpha1
     operations:
@@ -42,12 +42,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-actions-msft-isd-coe-io-v1alpha1-database
+      path: /validate-sqlmi-arc-sql-mi-microsoft-io-v1alpha1-database
   failurePolicy: Fail
   name: vdatabase.kb.io
   rules:
   - apiGroups:
-    - actions.msft.isd.coe.io
+    - sqlmi.arc-sql-mi.microsoft.io
     apiVersions:
     - v1alpha1
     operations:
