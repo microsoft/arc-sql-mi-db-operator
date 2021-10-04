@@ -55,8 +55,8 @@ type DatabaseSpec struct {
 	// this is used to query for the status of the instance as well as
 	// primary endpoint and connection info
 	SQLManagedInstance string `json:"sqlManagedInstance"`
-	// Schedule how often the database to k8s state should occur in cron format
-	Schedule string `json:"schedule,omitempty"`
+	//ForceUpdate allow the database to be mutated
+	ForceUpdate bool `json:"forceUpdate"`
 }
 
 // DatabaseStatus defines the observed state of Database

@@ -30,17 +30,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	corev1 "k8s.io/api/core/v1"
-
 	"github.com/go-logr/logr"
-	actionsv1alpha1 "github.com/pplavetzki/azure-sql-mi/api/v1alpha1"
-	ms "github.com/pplavetzki/azure-sql-mi/internal"
-	batch "k8s.io/api/batch/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	sqlmi "github.com/pplavetzki/arc-sql-mi/api/v1alpha1"
+	ms "github.com/pplavetzki/arc-sql-mi/internal"
+	corev1 "k8s.io/api/core/v1"
 )
 
-const databaseFinalizer = "actions.msft.isd.coe.io/finalizer"
-const defaultSchedule = "0 */12 * * *"
+const databaseFinalizer = "sqlmi.arc-sql-mi.microsoft.io/finalizer"
 
 // DatabaseReconciler reconciles a Database object
 type DatabaseReconciler struct {
@@ -67,7 +63,7 @@ func (a AnnotationPatch) Data(obj client.Object) ([]byte, error) {
 	return json.Marshal(obj)
 }
 
-func (r *DatabaseReconciler) updateDatabaseStatus(db *actionsv1alpha1.Database, status, databaseID string) error {
+func (r *DatabaseReconciler) updateDatabaseStatus(db *sqlmi.Database, status, databaseID string) error {
 	db.Status.Status = status
 	if databaseID != "" {
 		db.Status.DatabaseID = databaseID
@@ -75,13 +71,18 @@ func (r *DatabaseReconciler) updateDatabaseStatus(db *actionsv1alpha1.Database, 
 	return r.Status().Update(context.TODO(), db)
 }
 
-//+kubebuilder:rbac:groups=actions.msft.isd.coe.io,resources=databases,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=actions.msft.isd.coe.io,resources=databases/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=actions.msft.isd.coe.io,resources=databases/finalizers,verbs=update
+func (r *DatabaseReconciler) finalizeDatabase(ctx context.Context, db *sqlmi.Database, mssql *ms.MSSql) error {
+	if err := mssql.DeleteDatabase(ctx, db.Spec.Name); err != nil {
+		return err
+	}
+	return nil
+}
+
+//+kubebuilder:rbac:groups=sqlmi.arc-sql-mi.microsoft.io,resources=databases,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=sqlmi.arc-sql-mi.microsoft.io,resources=databases/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=sqlmi.arc-sql-mi.microsoft.io,resources=databases/finalizers,verbs=update
 //+kubebuilder:rbac:groups=sql.arcdata.microsoft.com,resources=sqlmanagedinstances,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
-//+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=batch,resources=cronjobs/status,verbs=get
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -91,13 +92,12 @@ func (r *DatabaseReconciler) updateDatabaseStatus(db *actionsv1alpha1.Database, 
 // the user.
 //
 // For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 	logger := r.Logger
-	logger.Info("reconciling database")
 
-	db := &actionsv1alpha1.Database{}
+	db := &sqlmi.Database{}
 	err := r.Get(ctx, req.NamespacedName, db)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -138,11 +138,9 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	/******************************************************************************************************************/
 
 	// This is the creating a MSSql Server `Provider`
+	// db.Spec.Server
 	msSQL := ms.NewMSSql(fmt.Sprintf("%s-p-svc", db.Spec.SQLManagedInstance), string(username), string(password), db.Spec.Port)
-	/*******************************************************************************************************************
-	// This line is to be able to debug locally.  We connect directly to the external endpoint
 	// msSQL := ms.NewMSSql(db.Spec.Server, string(username), string(password), db.Spec.Port)
-	/******************************************************************************************************************/
 	// Let's look at the status here first
 
 	/*******************************************************************************************************************
@@ -192,7 +190,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			return ctrl.Result{}, err
 		}
 		condition = *db.CreatedCondition()
-		status = actionsv1alpha1.DatabaseConditionCreated
+		status = sqlmi.DatabaseConditionCreated
 	} else {
 		syncResponse, err := msSQL.SyncNeeded(ctx, &ms.DatabaseConfig{DatabaseName: db.Spec.Name, DatabaseID: db.Status.DatabaseID,
 			CompatibilityLevel:         db.Spec.CompatibilityLevel,
@@ -214,49 +212,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}
 
 		condition = *db.SyncedCondition()
-		status = actionsv1alpha1.DatabaseConditionSynced
-	}
-
-	// Check if the cronjob already exists, if not create a new one
-	found := &batch.CronJob{}
-	err = r.Get(ctx, types.NamespacedName{Name: db.Name, Namespace: db.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		// Define a new cronjob
-		dep, err := r.createSyncJob(db, mi, msSQL)
-		if err != nil {
-			logger.Error(err, "Failed to create new CronJob")
-		}
-		logger.Info("Creating a new CronJob", "CronJob.Namespace", dep.Namespace, "CronJob.Name", dep.Name)
-		err = r.Create(ctx, dep)
-		if err != nil {
-			logger.Error(err, "Failed to create new CronJob", "CronJob.Namespace", dep.Namespace, "CronJob.Name", dep.Name)
-			return ctrl.Result{}, err
-		}
-		if status == actionsv1alpha1.DatabaseConditionCreated {
-			meta.SetStatusCondition(&db.Status.Conditions, condition)
-			r.updateDatabaseStatus(db, status, ms.SafeString(databaseId))
-		}
-		// CronJob created successfully - return and requeue
-		return ctrl.Result{Requeue: true}, nil
-	} else if err != nil {
-		logger.Error(err, "Failed to get CronJob")
-		return ctrl.Result{}, err
-	}
-
-	// Ensure the deployment size is the same as the spec
-	sched := db.Spec.Schedule
-	if sched == "" {
-		sched = defaultSchedule
-	}
-	if found.Spec.Schedule != sched {
-		found.Spec.Schedule = sched
-		err = r.Update(ctx, found)
-		if err != nil {
-			logger.Error(err, "Failed to update Deployment", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
-			return ctrl.Result{}, err
-		}
-		// Spec updated - return and requeue
-		return ctrl.Result{Requeue: true}, nil
+		status = sqlmi.DatabaseConditionSynced
 	}
 
 	meta.SetStatusCondition(&db.Status.Conditions, condition)
@@ -265,144 +221,9 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
-func (r *DatabaseReconciler) finalizeDatabase(ctx context.Context, db *actionsv1alpha1.Database, mssql *ms.MSSql) error {
-	if err := mssql.DeleteDatabase(ctx, db.Spec.Name); err != nil {
-		return err
-	}
-	return nil
-}
-
-var (
-	jobOwnerKey = ".metadata.controller"
-	apiGVStr    = actionsv1alpha1.GroupVersion.String()
-)
-
-func (r *DatabaseReconciler) createSyncJob(db *actionsv1alpha1.Database, mi *ms.SQLManagedInstance, msSQL *ms.MSSql) (*batch.CronJob, error) {
-	// We want job names for a given nominal start time to have a deterministic name to avoid the same job being created twice
-	// sched := time.Now()
-	// name := fmt.Sprintf("%s-%d", db.Name, sched.Unix())
-	cronSchedule := defaultSchedule
-
-	if db.Spec.Schedule != "" {
-		cronSchedule = db.Spec.Schedule
-	}
-
-	job := &batch.CronJob{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels:      make(map[string]string),
-			Annotations: make(map[string]string),
-			Name:        db.Name,
-			Namespace:   db.Namespace,
-		},
-		Spec: batch.CronJobSpec{
-			Schedule: cronSchedule,
-			JobTemplate: batch.JobTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels:      make(map[string]string),
-					Annotations: make(map[string]string),
-					Name:        db.Name,
-					Namespace:   db.Namespace,
-				},
-				Spec: batch.JobSpec{
-					Template: corev1.PodTemplateSpec{
-						Spec: corev1.PodSpec{
-							ServiceAccountName: "azure-sql-mi-controller-manager",
-							Containers: []corev1.Container{
-								// {
-								// 	Name:  "proxy",
-								// 	Image: "bitnami/kubectl:latest",
-								// 	Args: []string{
-								// 		"proxy",
-								// 		"--port=9090",
-								// 		"&",
-								// 	},
-								// },
-								{
-									Name:  "sync",
-									Image: "paulplavetzki/sync:v0.0.11",
-									Env: []corev1.EnvVar{
-										{
-											Name:  "DATABASE_CRD",
-											Value: db.Name,
-										},
-										{
-											Name:  "NAMESPACE",
-											Value: db.Namespace,
-										},
-										{
-											Name:  "DATABASE_PASSWORD",
-											Value: msSQL.Password,
-										},
-										{
-											Name:  "DATABASE_USER",
-											Value: msSQL.User,
-										},
-										{
-											Name:  "DATABASE_PORT",
-											Value: fmt.Sprintf("%d", msSQL.Port),
-										},
-										// {
-										// 	Name: "NAMESPACE",
-										// 	ValueFrom: &corev1.EnvVarSource{
-										// 		FieldRef: &corev1.ObjectFieldSelector{
-										// 			FieldPath: "metadata.namespace",
-										// 		},
-										// 	},
-										// },
-									},
-								},
-							},
-							RestartPolicy: corev1.RestartPolicyOnFailure,
-						},
-					},
-				},
-			},
-		},
-	}
-	// if db.Status.DatabaseID != "" {
-	// 	dbEnv := corev1.EnvVar{
-	// 		Name:  "DB_ID",
-	// 		Value: db.Status.DatabaseID,
-	// 	}
-	// 	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, dbEnv)
-	// }
-	// for k, v := range cronJob.Spec.JobTemplate.Annotations {
-	// 	job.Annotations[k] = v
-	// }
-	// job.Annotations[scheduledTimeAnnotation] = sched.Format(time.RFC3339)
-	// for k, v := range cronJob.Spec.JobTemplate.Labels {
-	// 	job.Labels[k] = v
-	// }
-	if err := ctrl.SetControllerReference(db, job, r.Scheme); err != nil {
-		return nil, err
-	}
-
-	return job, nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *DatabaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &batch.Job{}, jobOwnerKey, func(rawObj client.Object) []string {
-		// grab the job object, extract the owner...
-		job := rawObj.(*batch.Job)
-		owner := metav1.GetControllerOf(job)
-		if owner == nil {
-			return nil
-		}
-		// ...make sure it's a CronJob...
-		if owner.APIVersion != apiGVStr || owner.Kind != "Database" {
-			return nil
-		}
-
-		// ...and if so, return it
-		return []string{owner.Name}
-	}); err != nil {
-		return err
-	}
-
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&actionsv1alpha1.Database{}).
-		Owns(&batch.CronJob{}).
+		For(&sqlmi.Database{}).
 		Complete(r)
 }

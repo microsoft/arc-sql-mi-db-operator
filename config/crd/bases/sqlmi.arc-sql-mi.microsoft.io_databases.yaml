@@ -4,11 +4,11 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.1
+    controller-gen.kubebuilder.io/version: v0.4.1
   creationTimestamp: null
-  name: databases.actions.msft.isd.coe.io
+  name: databases.sqlmi.arc-sql-mi.microsoft.io
 spec:
-  group: actions.msft.isd.coe.io
+  group: sqlmi.arc-sql-mi.microsoft.io
   names:
     kind: Database
     listKind: DatabaseList
@@ -78,6 +78,9 @@ spec:
                 - passwordKey
                 - usernameKey
                 type: object
+              forceUpdate:
+                description: ForceUpdate allow the database to be mutated
+                type: boolean
               name:
                 description: Name is the Database name.
                 type: string
@@ -86,10 +89,6 @@ spec:
               port:
                 description: Port where Sql Server is listening
                 type: integer
-              schedule:
-                description: Schedule how often the database to k8s state should occur
-                  in cron format
-                type: string
               server:
                 description: Server is the sql server (fqdn/ip addresss)
                 type: string
@@ -99,6 +98,7 @@ spec:
                   as well as primary endpoint and connection info
                 type: string
             required:
+            - forceUpdate
             - name
             - sqlManagedInstance
             type: object
