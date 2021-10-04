@@ -62,6 +62,26 @@ This command also deploys all the necessary `K8S` manifest files located in the 
 
 Keep in mind that you need to have `KUBECONFIG` set or at a minimum an active configuration for this process to complete successfully.
 
+## Create the Database
+
+This is accomplished by applying the `Database` manifest using `kubectl`.  Here is an example manifest:
+
+```yaml
+apiVersion: sqlmi.arc-sql-mi.microsoft.io/v1alpha1
+kind: Database
+metadata:
+  name: database-sample
+spec:
+  name: MyDatabase1
+  sqlManagedInstance: jumpstart-sql
+  collation: SQL_Latin1_General_CP1_CS_AS # optional
+  parameterization: forced # optional, options:[simple, forced]
+  allowSnapshotIsolation: true # optional
+  allowReadCommittedSnapshot: false # optional
+  compatibilityLevel: 160 # optional
+  schedule: "*/1 * * * *" # optional
+```
+
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
